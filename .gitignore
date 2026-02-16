@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+*.db
+Demand_*.docx
+KirbyGate_Export_*.xlsx

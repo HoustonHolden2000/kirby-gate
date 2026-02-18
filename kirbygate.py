@@ -62,7 +62,17 @@ CREATE TABLE IF NOT EXISTS parcels (
     enforcement_step  TEXT DEFAULT 'Research',
     next_action       TEXT,
     deadline          TEXT,
-    notes             TEXT
+    notes             TEXT,
+    county_parcel_id  TEXT,
+    mailing_address   TEXT,
+    lender_name       TEXT,
+    lender_address    TEXT,
+    deed_of_trust_ref TEXT,
+    lender_contact    TEXT,
+    loan_number       TEXT,
+    title_company     TEXT,
+    address_verified  INTEGER DEFAULT 0,
+    lender_verified   INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS enforcement_log (
@@ -138,6 +148,16 @@ def ensure_deadline_columns(conn):
         ("cure_deadline", "TEXT"),
         ("lien_filing_date", "TEXT"),
         ("attorney_referral_date", "TEXT"),
+        ("county_parcel_id", "TEXT"),
+        ("mailing_address", "TEXT"),
+        ("lender_name", "TEXT"),
+        ("lender_address", "TEXT"),
+        ("deed_of_trust_ref", "TEXT"),
+        ("lender_contact", "TEXT"),
+        ("loan_number", "TEXT"),
+        ("title_company", "TEXT"),
+        ("address_verified", "INTEGER DEFAULT 0"),
+        ("lender_verified", "INTEGER DEFAULT 0"),
     ]
     for col_name, col_type in new_cols:
         if col_name not in existing:
@@ -477,6 +497,15 @@ def update_parcel(conn):
     print("    9. Square Footage")
     print("   10. Past Due Balance")
     print("   11. Weekly Rate")
+    print("  ---- Lender / Title ----")
+    print("   12. County Parcel ID")
+    print("   13. Mailing Address (for certified mail)")
+    print("   14. Lender Name")
+    print("   15. Lender Address")
+    print("   16. Deed of Trust Reference (book/page)")
+    print("   17. Lender Contact")
+    print("   18. Loan Number")
+    print("   19. Title Company")
     print("    0. Cancel")
 
     choice = input("\n  Choice: ").strip()
@@ -493,6 +522,14 @@ def update_parcel(conn):
         "9": ("sqft", "Square Footage", None),
         "10": ("past_due_balance", "Past Due Balance", None),
         "11": ("weekly_rate", "Weekly Rate", None),
+        "12": ("county_parcel_id", "County Parcel ID", None),
+        "13": ("mailing_address", "Mailing Address", None),
+        "14": ("lender_name", "Lender Name", None),
+        "15": ("lender_address", "Lender Address", None),
+        "16": ("deed_of_trust_ref", "Deed of Trust Ref (book/page)", None),
+        "17": ("lender_contact", "Lender Contact", None),
+        "18": ("loan_number", "Loan Number", None),
+        "19": ("title_company", "Title Company", None),
     }
 
     if choice == "0" or choice not in field_map:
@@ -1533,6 +1570,413 @@ def view_deadlines(conn):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# MENU 13: LENDER / TITLE RESEARCH TRACKER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def lender_research_tracker(conn):
+    header("LENDER / TITLE RESEARCH TRACKER")
+
+    print("  Use Shelby County public records to fill in this data:")
+    print("    Assessor:  https://www.assessormelvinburgess.com/propertySearch")
+    print("    Register:  https://search.register.shelby.tn.us/search/index.php")
+    print("    GIS Map:   https://gis.register.shelby.tn.us/")
+    print()
+
+    rows = conn.execute(
+        """SELECT id, address, business_name, entity_owner, status,
+                  county_parcel_id, mailing_address, lender_name, lender_address,
+                  deed_of_trust_ref, lender_contact, loan_number, title_company,
+                  address_verified, lender_verified
+           FROM parcels WHERE status != 'CURRENT' ORDER BY sqft DESC"""
+    ).fetchall()
+
+    if not rows:
+        print("  No non-current parcels.")
+        pause()
+        return
+
+    # Summary view
+    print(f"  {'ID':>3} {'Business':<28} {'Addr':>4} {'Lndr':>4} "
+          f"{'County Parcel':<16} {'Lender':<30} {'DoT Ref':<16}")
+    print("  " + "-" * 105)
+
+    verified_addr = 0
+    verified_lender = 0
+    for r in rows:
+        av = "YES" if r["address_verified"] else "---"
+        lv = "YES" if r["lender_verified"] else "---"
+        if r["address_verified"]:
+            verified_addr += 1
+        if r["lender_verified"]:
+            verified_lender += 1
+
+        cpid = r["county_parcel_id"] or "—"
+        lname = r["lender_name"] or "—"
+        dot = r["deed_of_trust_ref"] or "—"
+
+        print(f"  {r['id']:>3} {r['business_name']:<28} {av:>4} {lv:>4} "
+              f"{cpid:<16} {lname:<30} {dot:<16}")
+
+    print("  " + "-" * 105)
+    print(f"  Address verified: {verified_addr}/{len(rows)}  |  "
+          f"Lender verified: {verified_lender}/{len(rows)}")
+    print()
+
+    # Options
+    print("  Options:")
+    print("    1. View full detail for a parcel")
+    print("    2. Quick-enter lender data for a parcel")
+    print("    3. Mark address as verified")
+    print("    4. Mark lender as verified")
+    print("    0. Back to menu")
+    print()
+
+    choice = input("  Choice: ").strip()
+
+    if choice == "1":
+        pid = input("  Parcel ID: ").strip()
+        try:
+            pid = int(pid)
+        except ValueError:
+            print("  Invalid ID.")
+            pause()
+            return
+        row = conn.execute("SELECT * FROM parcels WHERE id = ?", (pid,)).fetchone()
+        if not row:
+            print(f"  No parcel with ID {pid}.")
+            pause()
+            return
+
+        print(f"\n  {'=' * 60}")
+        print(f"  PARCEL #{row['id']}: {row['business_name']}")
+        print(f"  {'=' * 60}")
+        print(f"  Address:            {row['address']}")
+        print(f"  Mailing Address:    {row['mailing_address'] or '— NOT SET'}")
+        print(f"  Entity/Owner:       {row['entity_owner'] or '—'}")
+        print(f"  Corporate Target:   {row['corporate_target'] or '—'}")
+        print(f"  County Parcel ID:   {row['county_parcel_id'] or '— NOT SET'}")
+        print(f"  SqFt:               {(row['sqft'] or 0):,}")
+        print(f"  Address Verified:   {'YES' if row['address_verified'] else 'NO'}")
+        print()
+        print(f"  LENDER / BANKING:")
+        print(f"  Lender Name:        {row['lender_name'] or '— NOT SET'}")
+        print(f"  Lender Address:     {row['lender_address'] or '— NOT SET'}")
+        print(f"  Lender Contact:     {row['lender_contact'] or '— NOT SET'}")
+        print(f"  Loan Number:        {row['loan_number'] or '— NOT SET'}")
+        print(f"  Deed of Trust Ref:  {row['deed_of_trust_ref'] or '— NOT SET'}")
+        print(f"  Title Company:      {row['title_company'] or '— NOT SET'}")
+        print(f"  Lender Verified:    {'YES' if row['lender_verified'] else 'NO'}")
+        pause()
+
+    elif choice == "2":
+        pid = input("  Parcel ID: ").strip()
+        try:
+            pid = int(pid)
+        except ValueError:
+            print("  Invalid ID.")
+            pause()
+            return
+        row = conn.execute("SELECT * FROM parcels WHERE id = ?", (pid,)).fetchone()
+        if not row:
+            print(f"  No parcel with ID {pid}.")
+            pause()
+            return
+
+        print(f"\n  Quick-enter lender data for: {row['business_name']}")
+        print(f"  (Press Enter to skip any field)\n")
+
+        fields = [
+            ("county_parcel_id", "County Parcel ID"),
+            ("mailing_address", "Mailing Address (for certified mail)"),
+            ("lender_name", "Lender / Bank Name"),
+            ("lender_address", "Lender Mailing Address"),
+            ("lender_contact", "Lender Contact (name/dept)"),
+            ("loan_number", "Loan Number"),
+            ("deed_of_trust_ref", "Deed of Trust Ref (book/page or instrument #)"),
+            ("title_company", "Title Company"),
+        ]
+
+        updates = {}
+        for field, label in fields:
+            current = row[field] or ""
+            if current:
+                val = input(f"  {label} [{current}]: ").strip()
+            else:
+                val = input(f"  {label}: ").strip()
+            if val:
+                updates[field] = val
+
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = list(updates.values()) + [pid]
+            conn.execute(f"UPDATE parcels SET {set_clause} WHERE id = ?", values)
+
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            fields_updated = ", ".join(updates.keys())
+            conn.execute(
+                """INSERT INTO enforcement_log (parcel_id, timestamp, action, notes)
+                   VALUES (?, ?, ?, ?)""",
+                (pid, now, f"Lender research updated: {fields_updated}",
+                 "Research tracker entry"),
+            )
+            conn.commit()
+            print(f"\n  Updated {len(updates)} field(s) for {row['business_name']}")
+            print(f"  (Logged at {now})")
+        else:
+            print("  No changes entered.")
+        pause()
+
+    elif choice == "3":
+        pid = input("  Parcel ID to mark address verified: ").strip()
+        try:
+            pid = int(pid)
+        except ValueError:
+            print("  Invalid ID.")
+            pause()
+            return
+        conn.execute("UPDATE parcels SET address_verified = 1 WHERE id = ?", (pid,))
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            """INSERT INTO enforcement_log (parcel_id, timestamp, action, notes)
+               VALUES (?, ?, ?, ?)""",
+            (pid, now, "Address verified via county records", "Research tracker"),
+        )
+        conn.commit()
+        print("  Address marked as verified.")
+        pause()
+
+    elif choice == "4":
+        pid = input("  Parcel ID to mark lender verified: ").strip()
+        try:
+            pid = int(pid)
+        except ValueError:
+            print("  Invalid ID.")
+            pause()
+            return
+        conn.execute("UPDATE parcels SET lender_verified = 1 WHERE id = ?", (pid,))
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            """INSERT INTO enforcement_log (parcel_id, timestamp, action, notes)
+               VALUES (?, ?, ?, ?)""",
+            (pid, now, "Lender verified via Register of Deeds", "Research tracker"),
+        )
+        conn.commit()
+        print("  Lender marked as verified.")
+        pause()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MENU 14: GENERATE LENDER NOTIFICATION LETTER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def generate_lender_notification(conn):
+    header("GENERATE LENDER NOTIFICATION LETTER")
+
+    try:
+        from docx import Document
+        from docx.shared import Pt
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+    except ImportError:
+        print("  Error: python-docx is not installed.")
+        print("  Run: pip install python-docx")
+        pause()
+        return
+
+    # Show parcels with lender data
+    rows = conn.execute(
+        """SELECT id, business_name, address, lender_name, lender_address, lender_verified
+           FROM parcels
+           WHERE status = 'DELINQUENT' AND lender_name IS NOT NULL AND lender_name != ''
+           ORDER BY sqft DESC"""
+    ).fetchall()
+
+    if not rows:
+        print("  No delinquent parcels with lender data found.")
+        print("  Use option 13 (Lender Research Tracker) to add lender information first.")
+        pause()
+        return
+
+    print(f"  Parcels with lender data:")
+    print(f"  {'ID':>3} {'Business':<28} {'Lender':<30} {'Verified':>8}")
+    print("  " + "-" * 73)
+    for r in rows:
+        v = "YES" if r["lender_verified"] else "NO"
+        print(f"  {r['id']:>3} {r['business_name']:<28} {r['lender_name']:<30} {v:>8}")
+    print()
+
+    pid = input("  Parcel ID (or 'all' for batch): ").strip()
+
+    if pid.lower() == "all":
+        targets = rows
+    else:
+        try:
+            pid = int(pid)
+        except ValueError:
+            print("  Invalid ID.")
+            pause()
+            return
+        targets = [r for r in rows if r["id"] == pid]
+        if not targets:
+            print(f"  No lender data for parcel {pid}.")
+            pause()
+            return
+
+    generated = []
+    for target in targets:
+        row = conn.execute("SELECT * FROM parcels WHERE id = ?", (target["id"],)).fetchone()
+        sqft = row["sqft"] or 0
+        arrears = get_arrears(row)
+        today_str = datetime.now().strftime("%B %d, %Y")
+
+        doc = Document()
+        style = doc.styles["Normal"]
+        style.font.name = "Times New Roman"
+        style.font.size = Pt(12)
+
+        # Letterhead
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run("SECURITY ONE")
+        run.bold = True
+        run.font.size = Pt(14)
+
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.add_run("[Letterhead — Address / Phone / Email]")
+
+        doc.add_paragraph("")
+        doc.add_paragraph(today_str)
+        doc.add_paragraph("")
+
+        # Lender address
+        doc.add_paragraph("SENT VIA CERTIFIED MAIL")
+        doc.add_paragraph("")
+        if row["lender_contact"]:
+            doc.add_paragraph(row["lender_contact"])
+        doc.add_paragraph(row["lender_name"] or "")
+        if row["lender_address"]:
+            doc.add_paragraph(row["lender_address"])
+        doc.add_paragraph("")
+
+        # Subject
+        p = doc.add_paragraph()
+        run = p.add_run("RE: NOTICE OF COVENANT DEFAULT AND IMMINENT LIEN — SECURED CREDITOR NOTIFICATION")
+        run.bold = True
+        run.underline = True
+        doc.add_paragraph("")
+
+        # Property identification
+        doc.add_paragraph(f"Property Address:    {row['address']}")
+        doc.add_paragraph(f"Tenant/Occupant:     {row['business_name']}")
+        doc.add_paragraph(f"Record Owner:        {row['entity_owner'] or 'See deed records'}")
+        if row["county_parcel_id"]:
+            doc.add_paragraph(f"County Parcel ID:    {row['county_parcel_id']}")
+        if row["deed_of_trust_ref"]:
+            doc.add_paragraph(f"Deed of Trust Ref:   {row['deed_of_trust_ref']}")
+        if row["loan_number"]:
+            doc.add_paragraph(f"Loan Number:         {row['loan_number']}")
+        doc.add_paragraph("")
+
+        # Body
+        doc.add_paragraph("Dear Sir or Madam:")
+        doc.add_paragraph("")
+        doc.add_paragraph(
+            "This letter serves as formal notice to you, as the secured lender of record "
+            "for the above-referenced property, that the property is in material default of the "
+            f"Declaration of Restrictive Covenants recorded on {DECLARATION_DATE} "
+            "(the \"Declaration\") governing the Kirby Gate commercial development, Memphis, Tennessee."
+        )
+        doc.add_paragraph("")
+        doc.add_paragraph(
+            "Security One has been designated as the authorized security services provider under "
+            "the Declaration. Pursuant to the Declaration, each parcel owner is obligated to fund "
+            "its pro-rata share of campus-wide security services."
+        )
+        doc.add_paragraph("")
+
+        # Arrears
+        p = doc.add_paragraph()
+        run = p.add_run("DEFAULT AMOUNT:")
+        run.bold = True
+        doc.add_paragraph(f"  Parcel Square Footage:    {sqft:,} SF of {TOTAL_CAMPUS_SQFT:,} SF campus")
+        pct = sqft / TOTAL_CAMPUS_SQFT if sqft else 0
+        doc.add_paragraph(f"  Pro-Rata Share:           {pct:.4%}")
+        doc.add_paragraph(f"  36-Month Arrears Owed:    {money(arrears)}")
+        doc.add_paragraph("")
+
+        # Lien notice
+        p = doc.add_paragraph()
+        run = p.add_run("NOTICE OF IMMINENT LIEN:")
+        run.bold = True
+        doc.add_paragraph(
+            f"Please be advised that unless the above arrears are cured in full, Security One "
+            f"intends to record a Notice of Lien against this property under the Declaration "
+            f"on or before {LIEN_DEADLINE}."
+        )
+        doc.add_paragraph("")
+        doc.add_paragraph(
+            "This lien, arising under a recorded Declaration of Restrictive Covenants, will "
+            "constitute an encumbrance on the property and may affect the priority, marketability, "
+            "and insurability of title. We are providing this notice to allow you, as a secured "
+            "creditor, to take whatever action you deem appropriate to protect your interest, "
+            "including but not limited to:"
+        )
+        doc.add_paragraph("  1. Contacting the borrower/owner to demand cure of the covenant default")
+        doc.add_paragraph("  2. Exercising any rights under your loan documents relating to covenant compliance")
+        doc.add_paragraph("  3. Ensuring that your title insurance covers the covenant lien")
+        doc.add_paragraph("")
+        doc.add_paragraph(
+            "The Declaration provides for lien rights, fee-shifting, and enforcement in "
+            "Shelby County, Tennessee. The applicable statute of limitations for contract "
+            "enforcement is six (6) years under Tennessee law."
+        )
+        doc.add_paragraph("")
+        doc.add_paragraph(
+            "We are available to discuss resolution of this matter and will provide "
+            "updates on the status of enforcement proceedings upon request."
+        )
+        doc.add_paragraph("")
+        doc.add_paragraph("Respectfully,")
+        doc.add_paragraph("")
+        doc.add_paragraph("")
+        doc.add_paragraph("____________________________________")
+        doc.add_paragraph("Brad")
+        doc.add_paragraph("Security One")
+        doc.add_paragraph("")
+        doc.add_paragraph("cc: Jeff Rosenblum, Esq. (Counsel)")
+        doc.add_paragraph(f"    {row['entity_owner'] or 'Property Owner'} (Borrower)")
+
+        # Save
+        safe_name = row["business_name"].replace("/", "-").replace(" ", "_")
+        safe_lender = (row["lender_name"] or "Lender").replace("/", "-").replace(" ", "_")[:20]
+        filename = f"LenderNotice_{safe_name}_{safe_lender}_{datetime.now():%Y%m%d}.docx"
+        filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+        doc.save(filepath)
+
+        # Log
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            """INSERT INTO enforcement_log
+               (parcel_id, timestamp, action, sent_via, next_step, attorney, notes)
+               VALUES (?,?,?,?,?,?,?)""",
+            (target["id"], now,
+             f"Lender notification generated: {filename}",
+             "USPS Certified (pending)",
+             "Send to lender via certified mail",
+             "Rosenblum",
+             f"Lender: {row['lender_name']}, Arrears: {money(arrears)}"),
+        )
+        conn.commit()
+        generated.append((row["business_name"], row["lender_name"], filepath))
+
+    print(f"\n  Generated {len(generated)} lender notification(s):")
+    for biz, lender, fp in generated:
+        print(f"    {biz} -> {lender}")
+        print(f"      {fp}")
+    pause()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN MENU
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1565,6 +2009,9 @@ def main_menu():
         print("   10.  Pro-Rata Calculator")
         print("   11.  Mark Packet Sent")
         print("   12.  Upcoming Deadlines")
+        print("  ---- Lender / Title Research ----")
+        print("   13.  Lender Research Tracker")
+        print("   14.  Generate Lender Notification")
         print("    0.  Exit")
         print()
 
@@ -1594,11 +2041,15 @@ def main_menu():
             mark_packet_sent(conn)
         elif choice == "12":
             view_deadlines(conn)
+        elif choice == "13":
+            lender_research_tracker(conn)
+        elif choice == "14":
+            generate_lender_notification(conn)
         elif choice == "0":
             print("\n  System closed. All data saved to kirbygate.db.")
             break
         else:
-            print("  Invalid choice. Enter 1-12 or 0.")
+            print("  Invalid choice. Enter 1-14 or 0.")
             pause()
 
     conn.close()

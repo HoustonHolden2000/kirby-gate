@@ -32,30 +32,32 @@ INSTRUMENT_CITATION = (
 
 # ── Per-entity contact salutations (correction #7) ─────────────────────────
 # Key = business_name prefix match; value = salutation line
+# Salutations updated per Shelby County Assessor verified owners (Tax Year 2025)
 CONTACTS = {
-    "Kroger": "Dear Delta Division Real Estate Manager:",
-    "Starbucks": "Dear Regional Facilities Manager:",
-    "Wendy": "Dear Mr. Volpe:",
-    "Summit of Germantown": "Dear Property Owner/Operator:",
-    "Freedom Plasma": "Dear Property Owner:",
-    "Dollar General": "Dear Mr. Simonsen:",
-    "Dunkin": "Dear Mr. Garner:",
-    "Pointe at Kirby": "Dear Grace Management/MedHCP:",
-    "Dollar Tree": "Dear Corporate Real Estate Department:",
-    "KG Business": "Dear Property Owner:",
+    "Kroger": "Dear Kroger Limited Partnership I, Property Tax Department:",
+    "Starbucks": "Dear Trustee, Kristovich Trust:",
+    "Wendy": "Dear Arline Townhomes LLC:",
+    "Summit of Germantown": "Dear Memphis Senior Housing Propco K6 LLC:",
+    "Freedom Plasma": "Dear Realty Income Properties 25 LLC:",
+    "Dollar General": "Dear DG Memphis LLC:",
+    "Dunkin": "Dear Kirby Land Holdings LLC:",
+    "Pointe at Kirby": "Dear 6480 Quince Road East Holdings LLC:",
+    "Dollar Tree": "Dear DT Retail Properties LLC:",
+    "KG Business": "Dear 3LS Properties Inc:",
 }
 
+# Mailing addresses verified via Shelby County GIS CERT_Parcel layer (2025)
 CONTACT_ADDRESSES = {
-    "Kroger": "Delta Division Real Estate Manager\n800 Ridge Lake Blvd\nMemphis, TN 38120",
-    "Starbucks": "Regional Facilities Manager",
-    "Wendy": "Paul Volpe, CFO\nCarlisle Corp / Wendelta\nMemphis, TN",
-    "Summit of Germantown": "Property Owner/Operator\n6420 Quince Rd\nMemphis, TN 38119",
-    "Freedom Plasma": "Property Owner\n6500 Quince Rd\nMemphis, TN 38119",
-    "Dollar General": "Matthew Simonsen, SVP\n100 Mission Ridge\nGoodlettsville, TN 37072",
-    "Dunkin": "Peter Garner, Managing Partner\nJP Foods LLC\n999 S Shady Grove Rd\nMemphis, TN 38120",
-    "Pointe at Kirby": "Grace Management / MedHCP\n6480 Quince Rd\nMemphis, TN 38119",
-    "Dollar Tree": "Corporate Real Estate Department",
-    "KG Business": "Property Owner\n2715/2725b Kirby\nMemphis, TN",
+    "Kroger": "Kroger Limited Partnership I\nProperty Tax, 7th Floor\n1014 Vine St\nCincinnati, OH 45202",
+    "Starbucks": "Kristovich Trust\n21555 Prospect Rd\nSaratoga, CA 95070",
+    "Wendy": "Arline Townhomes LLC\nc/o Deloris Mayuga\n6571 El Roble St\nLong Beach, CA 90815",
+    "Summit of Germantown": "Memphis Senior Housing Propco K6 LLC\nc/o Kayne Anderson Real Estate Advisors\n1 Town Center Rd, Ste 300\nBoca Raton, FL 33486",
+    "Freedom Plasma": "Realty Income Properties 25 LLC\n1430 E Southlake Blvd, Suite 200\nSouthlake, TX 76092",
+    "Dollar General": "DG Memphis LLC\n12155 Spencer Rd\nMilford, MI 48380",
+    "Dunkin": "Kirby Land Holdings LLC\n1050 Cambridge Sq\nAlpharetta, GA 30009",
+    "Pointe at Kirby": "6480 Quince Road East Holdings LLC\nc/o CWCapital Asset Management LLC\n900 19th St NW, Floor 8\nWashington, DC 20006",
+    "Dollar Tree": "DT Retail Properties LLC\n500 Volvo Parkway\nChesapeake, VA 23320",
+    "KG Business": "3LS Properties Inc\n301 S Perimeter Dr, Suite 200\nNashville, TN 37211",
 }
 
 
@@ -338,7 +340,7 @@ def main():
             """INSERT INTO enforcement_log
                (parcel_id, timestamp, action, next_step, attorney, notes)
                VALUES (?,?,?,?,?,?)""",
-            (row["id"], now, f"Demand letter generated (v3): {filename}",
+            (row["id"], now, f"Demand letter generated (v4-verified): {filename}",
              "Send via certified mail", "Rosenblum",
              f"Arrears: {pd_str}, SF: {sqft:,}, 30-day cure"),
         )

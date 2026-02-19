@@ -2017,43 +2017,55 @@ def main_menu():
 
         choice = input("  Enter choice: ").strip()
 
-        if choice == "1":
-            view_all_parcels(conn)
-        elif choice == "2":
-            view_nonpayers(conn)
-        elif choice == "3":
-            update_parcel(conn)
-        elif choice == "4":
-            log_enforcement(conn)
-        elif choice == "5":
-            generate_demand_letter(conn)
-        elif choice == "6":
-            settlement_calculator(conn)
-        elif choice == "7":
-            export_excel(conn)
-        elif choice == "8":
-            view_timeline(conn)
-        elif choice == "9":
-            dashboard(conn)
-        elif choice == "10":
-            prorata_calculator(conn)
-        elif choice == "11":
-            mark_packet_sent(conn)
-        elif choice == "12":
-            view_deadlines(conn)
-        elif choice == "13":
-            lender_research_tracker(conn)
-        elif choice == "14":
-            generate_lender_notification(conn)
-        elif choice == "0":
-            print("\n  System closed. All data saved to kirbygate.db.")
-            break
-        else:
-            print("  Invalid choice. Enter 1-14 or 0.")
+        try:
+            if choice == "1":
+                view_all_parcels(conn)
+            elif choice == "2":
+                view_nonpayers(conn)
+            elif choice == "3":
+                update_parcel(conn)
+            elif choice == "4":
+                log_enforcement(conn)
+            elif choice == "5":
+                generate_demand_letter(conn)
+            elif choice == "6":
+                settlement_calculator(conn)
+            elif choice == "7":
+                export_excel(conn)
+            elif choice == "8":
+                view_timeline(conn)
+            elif choice == "9":
+                dashboard(conn)
+            elif choice == "10":
+                prorata_calculator(conn)
+            elif choice == "11":
+                mark_packet_sent(conn)
+            elif choice == "12":
+                view_deadlines(conn)
+            elif choice == "13":
+                lender_research_tracker(conn)
+            elif choice == "14":
+                generate_lender_notification(conn)
+            elif choice == "0":
+                print("\n  System closed. All data saved to kirbygate.db.")
+                break
+            else:
+                print("  Invalid choice. Enter 1-14 or 0.")
+                pause()
+        except Exception as e:
+            print(f"\n  *** ERROR in option {choice}: {e} ***")
+            import traceback
+            traceback.print_exc()
             pause()
 
     conn.close()
 
 
 if __name__ == "__main__":
-    main_menu()
+    try:
+        main_menu()
+    except Exception as e:
+        print(f"\n  *** ERROR: {e} ***")
+        import traceback
+        traceback.print_exc()
+        input("\n  Press Enter to close...")
